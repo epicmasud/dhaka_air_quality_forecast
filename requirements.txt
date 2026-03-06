@@ -1,0 +1,5 @@
+streamlit>=1.38.0
+tensorflow==2.16.1
+numpy>=1.26.0
+pandas>=2.2.0
+pickle5>=0.0.11; python_version < "3.8"  # only needed if using very old Python, usually not required
