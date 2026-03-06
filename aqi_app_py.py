@@ -2,11 +2,12 @@ import streamlit as st
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.metrics import MeanSquaredError
+import pickle
 import time
 
 # --- পেজ কনফিগ ---
 st.set_page_config(
-    page_title="Dhaka AQI Forecaster",
+    page_title="Dhaka AQI Forecaster V3",
     page_icon="🌫️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -43,20 +44,20 @@ def get_health_advice(aqi):
         return "বিপজ্জনক — জরুরি অবস্থা, ঘরে থাকুন, মাস্ক পরুন। ☢️"
 
 # --- হেডার ---
-st.markdown('<h1 class="main-header">Dhaka AQI Forecaster</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Real-time Air Quality Prediction for Dhaka</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">Dhaka AQI Forecaster V3</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Advanced LSTM Model • More Accurate Prediction • Real-time Health Insights</p>', unsafe_allow_html=True)
 
 # --- সাইডবার ---
 with st.sidebar:
-    st.markdown('<h2 class="sidebar-title">Dhaka AQI</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="sidebar-title">Dhaka AQI V3</h2>', unsafe_allow_html=True)
     st.image("https://img.icons8.com/fluency/96/air-quality.png", width=160)
     st.markdown("### Input Controls")
-    st.info("Enter expected weather conditions to predict AQI")
+    st.info("Enter expected weather parameters for accurate AQI forecast")
     st.markdown("---")
-    st.markdown("**Model uses these 18 variables** (only some are required):")
+    st.markdown("**Model uses these 18 variables** (fill what you know):")
     st.markdown("- tavg (Average Temperature °C)")
-    st.markdown("- tmin (Min Temperature °C)")
-    st.markdown("- tmax (Max Temperature °C)")
+    st.markdown("- tmin (Minimum Temperature °C)")
+    st.markdown("- tmax (Maximum Temperature °C)")
     st.markdown("- prcp (Rainfall mm)")
     st.markdown("- wspd (Wind Speed km/h)")
     st.markdown("- pres (Pressure hPa)")
@@ -66,12 +67,17 @@ with st.sidebar:
     st.markdown("- Pressure (hPa)")
     st.markdown("- aqi_lag1 (Previous Day AQI)")
     st.markdown("- season (1=Winter, 4=Summer)")
-    st.markdown("- PM2.5, PM10, O3, NO2, SO2, CO (auto-filled)")
+    st.markdown("- PM2.5")
+    st.markdown("- PM10")
+    st.markdown("- O3")
+    st.markdown("- NO2")
+    st.markdown("- SO2")
+    st.markdown("- CO")
     st.markdown("---")
     st.markdown("**Developer**")
     st.markdown("Masud Hasan")
     st.markdown("[GitHub Repo](https://github.com/epicmasud/aqi-dhaka-forecast)")
-    st.markdown("[Feedback](https://your-contact-link)")
+    st.markdown("[Feedback / Suggestions](https://your-contact-link)")
 
 # --- মেইন কনটেন্ট ---
 col1, col2 = st.columns([3, 1])
@@ -79,42 +85,52 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.subheader("Weather Forecast Inputs")
     temp = st.slider("Average Temperature (°C)", 10.0, 40.0, 28.0, step=0.5)
+    tmin = st.slider("Minimum Temperature (°C)", 5.0, 30.0, 20.0, step=0.5)
+    tmax = st.slider("Maximum Temperature (°C)", 20.0, 45.0, 35.0, step=0.5)
     rain = st.slider("Rainfall (mm)", 0.0, 100.0, 0.0, step=1.0)
     wind = st.slider("Wind Speed (km/h)", 0.0, 50.0, 10.0, step=1.0)
-    lag1 = st.number_input("Previous Day AQI (if known)", 0.0, 500.0, 100.0, step=1.0)
+    pressure = st.slider("Pressure (hPa)", 900.0, 1100.0, 1010.0, step=1.0)
+    lag1 = st.number_input("Previous Day AQI", 0.0, 500.0, 100.0, step=1.0)
     season = st.slider("Season (1=Winter, 4=Summer)", 1, 4, 3)
 
     predict_button = st.button("Predict AQI", type="primary", use_container_width=True)
 
 if predict_button:
-    with st.spinner("Predicting AQI..."):
-        time.sleep(1.5)
+    with st.spinner("Processing weather data & generating prediction..."):
+        time.sleep(1.8)
 
         try:
-            # মডেল লোড
+            # মডেল ও স্কেলার লোড
             model = load_model('dhaka_aqi_lstm_v3.h5', custom_objects={'mse': MeanSquaredError()})
+            with open('scaler_v3.pkl', 'rb') as f:
+                scaler = pickle.load(f)
 
-            # ১৮টা ফিচার
+            # ফিচার সংখ্যা ট্রেনিং-এর সাথে মিলানো (১৮টা)
             num_features = 18
             timesteps = 7
 
-            # ইনপুট অর্ডার ট্রেনিং-এর মতো
+            # ইনপুট ফিচার অর্ডার ট্রেনিং-এর মতো (১৮টা)
             input_features = [
-                temp, temp, temp, rain, wind, 1010,  # tavg, tmin, tmax, prcp, wspd, pres (ডামি/ইনপুট)
-                temp, 50, wind, 1010, lag1, season,   # Temperature, Humidity, Wind_Speed, Pressure, aqi_lag1, season
-                50, 50, 50, 50, 50, 50               # PM2.5, PM10, O3, NO2, SO2, CO (ডামি)
-            ]
+                temp, tmin, tmax, rain, wind, pressure,   # ওয়েদার ফিচার
+                temp,  # Temperature (ডুপ্লিকেট যদি থাকে)
+                50,    # Humidity (ডামি — যদি না নেওয়া হয়)
+                wind,  # Wind_Speed
+                pressure,  # Pressure
+                lag1, season,  # lag1 + season
+                50, 50, 50, 50, 50, 50  # PM2.5, PM10, O3, NO2, SO2, CO (ডামি)
+            ]  # মোট ১৮টা
 
             input_array = np.array([input_features] * timesteps, dtype=np.float32)
             input_scaled = input_array.reshape(1, timesteps, num_features)
 
+            # প্রেডিক্ট
             pred_scaled = model.predict(input_scaled, verbose=0)[0][0]
 
             # সঠিক ইনভার্স ট্রান্সফর্ম (১৮ ফিচার + ১ টার্গেট)
             dummy_inverse = np.zeros((1, num_features + 1))
             dummy_inverse[0, -1] = pred_scaled
-            # scaler_v3.pkl ব্যবহার করে স্কেল ব্যাক (যদি থাকে)
-            pred_aqi = max(0, int(pred_scaled * 350 + 30))  # ডামি — আসল scaler যোগ করো যদি থাকে
+            pred_aqi_full = scaler.inverse_transform(dummy_inverse)
+            pred_aqi = max(0, int(pred_aqi_full[0, -1]))
 
             # AQI কার্ড
             if pred_aqi <= 50:
@@ -143,6 +159,7 @@ if predict_button:
                 unsafe_allow_html=True
             )
 
+            # AQI 200+ হলে জরুরি অ্যাকশন
             if pred_aqi >= 200:
                 st.markdown(
                     """
@@ -161,13 +178,13 @@ if predict_button:
                 )
 
         except Exception as e:
-            st.error(f"সমস্যা: {str(e)}\nমডেল বা ফাইল চেক করুন।")
+            st.error(f"সমস্যা: {str(e)}\nমডেল বা স্কেলার ফাইল চেক করুন।")
 
 # --- ফুটার ---
 st.markdown(
     """
     <div class="footer">
-        © 2026 Dhaka AQI Forecaster | Built with ❤️ by Masud Hasan | 
+        © 2026 Dhaka AQI Forecaster V3 | Built with ❤️ by Masud Hasan | 
         <a href="https://github.com/epicmasud/aqi-dhaka-forecast" style="color:#00E5FF; text-decoration:none;">Source Code on GitHub</a>
     </div>
     """,
