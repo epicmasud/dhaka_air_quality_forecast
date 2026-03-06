@@ -2,8 +2,8 @@ import streamlit as st
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.metrics import MeanSquaredError
-import time
 import pickle
+import time
 
 # --- পেজ কনফিগ ---
 st.set_page_config(
@@ -13,69 +13,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- কাস্টম CSS (প্রফেশনাল + কালারফুল) ---
+# --- কাস্টম CSS ---
 st.markdown("""
     <style>
-    .main-header {
-        font-size: 3.8rem;
-        color: #00E5FF;
-        text-align: center;
-        margin: 1.5rem 0;
-        font-weight: 900;
-        text-shadow: 0 0 25px rgba(0, 229, 255, 0.7);
-    }
-    .sub-header {
-        font-size: 1.6rem;
-        color: #B0BEC5;
-        text-align: center;
-        margin-bottom: 3.5rem;
-    }
-    .aqi-card {
-        padding: 3.5rem;
-        border-radius: 25px;
-        text-align: center;
-        margin: 3rem auto;
-        max-width: 800px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.7);
-        border: 3px solid;
-        background: linear-gradient(135deg, rgba(15, 30, 55, 0.97), rgba(0, 15, 40, 0.97));
-    }
-    .aqi-number {
-        font-size: 7rem;
-        font-weight: bold;
-        margin: 0.6rem 0;
-    }
-    .aqi-level {
-        font-size: 2.8rem;
-        margin: 1rem 0;
-    }
-    .advice {
-        font-size: 1.5rem;
-        margin-top: 2.5rem;
-        line-height: 1.8;
-        color: #E0F7FA;
-    }
-    .action-list {
-        background: rgba(255, 255, 255, 0.08);
-        padding: 2rem;
-        border-radius: 15px;
-        margin-top: 2.5rem;
-        border: 1px solid rgba(0, 229, 255, 0.25);
-    }
-    .footer {
-        text-align: center;
-        color: #78909C;
-        margin-top: 6rem;
-        padding: 2.5rem;
-        border-top: 1px solid #444;
-        font-size: 1.2rem;
-    }
-    .sidebar-title {
-        font-size: 2rem;
-        color: #00E5FF;
-        margin-bottom: 1.5rem;
-        text-align: center;
-    }
+    .main-header { font-size: 3.8rem; color: #00E5FF; text-align: center; margin: 1.5rem 0; font-weight: 900; text-shadow: 0 0 25px rgba(0, 229, 255, 0.7); }
+    .sub-header { font-size: 1.6rem; color: #B0BEC5; text-align: center; margin-bottom: 3.5rem; }
+    .aqi-card { padding: 3.5rem; border-radius: 25px; text-align: center; margin: 3rem auto; max-width: 800px; box-shadow: 0 20px 60px rgba(0,0,0,0.7); border: 3px solid; background: linear-gradient(135deg, rgba(15, 30, 55, 0.97), rgba(0, 15, 40, 0.97)); }
+    .aqi-number { font-size: 7rem; font-weight: bold; margin: 0.6rem 0; }
+    .aqi-level { font-size: 2.8rem; margin: 1rem 0; }
+    .advice { font-size: 1.5rem; margin-top: 2.5rem; line-height: 1.8; color: #E0F7FA; }
+    .action-list { background: rgba(255, 255, 255, 0.08); padding: 2rem; border-radius: 15px; margin-top: 2.5rem; border: 1px solid rgba(0, 229, 255, 0.25); }
+    .footer { text-align: center; color: #78909C; margin-top: 6rem; padding: 2.5rem; border-top: 1px solid #444; font-size: 1.2rem; }
+    .sidebar-title { font-size: 2rem; color: #00E5FF; margin-bottom: 1.5rem; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -105,11 +54,15 @@ with st.sidebar:
     st.markdown("### Input Controls")
     st.info("Provide expected weather parameters for accurate AQI forecast")
     st.markdown("---")
-    st.markdown("**Advanced Features**")
-    st.markdown("- Upgraded LSTM with 18+ variables")
-    st.markdown("- Dynamic colorful AQI card")
-    st.markdown("- Detailed health & emergency advice")
-    st.markdown("- Premium dark theme")
+    st.markdown("**All Variables Used**")
+    st.markdown("- Average Temperature (°C)")
+    st.markdown("- Minimum Temperature (°C)")
+    st.markdown("- Maximum Temperature (°C)")
+    st.markdown("- Rainfall (mm)")
+    st.markdown("- Wind Speed (km/h)")
+    st.markdown("- Atmospheric Pressure (hPa)")
+    st.markdown("- Previous Day AQI")
+    st.markdown("- Season (1=Winter, 4=Summer)")
     st.markdown("---")
     st.markdown("**Developer**")
     st.markdown("Masud Hasan")
@@ -134,7 +87,7 @@ with col1:
 
 if predict_button:
     with st.spinner("Processing weather data & generating prediction..."):
-        time.sleep(1.8)  # সিমুলেট লোডিং
+        time.sleep(1.8)
 
         try:
             # মডেল ও স্কেলার লোড করো
@@ -142,18 +95,21 @@ if predict_button:
             with open('scaler_v3.pkl', 'rb') as f:
                 scaler = pickle.load(f)
 
-            # তোমার মডেলের input shape অনুযায়ী (যেমন 18 ফিচার)
-            num_features = 18  # ← এখানে তোমার model.input_shape[2] দাও (যেমন 18)
-            timesteps = 7
-
-            # ইনপুট ফিচার অর্ডার অনুযায়ী অ্যারে বানাও
+            # ইনপুট ফিচার অর্ডার (ট্রেনিং-এ যে অর্ডারে ছিল সেটা মিলাতে হবে)
+            # ধরে নেয়া হয়েছে features = ['tavg', 'tmin', 'tmax', 'prcp', 'wspd', 'pres', 'aqi_lag1', 'season', ...] (মোট 18)
             input_features = [temp, tmin, tmax, rain, wind, pressure, lag1, season, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # 18 ফিচার
-            dummy_features = np.array([input_features] * timesteps, dtype=np.float32)
-            dummy_features = dummy_features.reshape(1, timesteps, num_features)
+            input_array = np.array([input_features] * 7, dtype=np.float32)  # 7 timesteps
+            input_scaled = scaler.transform(input_array.reshape(-1, len(input_features)))  # স্কেল করো
+            input_scaled = input_scaled.reshape(1, 7, len(input_features))  # (1, timesteps, features)
 
             # প্রেডিক্ট করো
-            pred_scaled = model.predict(dummy_features, verbose=0)[0][0]
-            pred_aqi = int(pred_scaled * 350 + 30)  # আসল scaler দিয়ে বদলাও (যদি scaler আছে তাহলে সঠিকভাবে ব্যবহার করো)
+            pred_scaled = model.predict(input_scaled, verbose=0)[0][0]
+
+            # সঠিকভাবে ইনভার্স ট্রান্সফর্ম করো (শুধু AQI কলামের জন্য)
+            dummy = np.zeros((1, len(input_features) + 1))  # +1 for target
+            dummy[0, -1] = pred_scaled
+            pred_aqi = scaler.inverse_transform(dummy)[0, -1]
+            pred_aqi = max(0, int(pred_aqi))  # নেগেটিভ এড়ানোর জন্য
 
             # AQI কার্ড
             if pred_aqi <= 50:
@@ -213,18 +169,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-# অ্যাডভাইস ফাংশন
-def get_health_advice(aqi):
-    if aqi <= 50:
-        return "বাতাস ভালো — বাইরে যাওয়া সম্পূর্ণ নিরাপদ।"
-    elif aqi <= 100:
-        return "মাঝারি দূষণ — সংবেদনশীল হলে সতর্ক থাকুন।"
-    elif aqi <= 150:
-        return "অস্বাস্থ্যকর সংবেদনশীলদের জন্য — বাইরে কম যান।"
-    elif aqi <= 200:
-        return "অস্বাস্থ্যকর — N95 মাস্ক পরুন, শারীরিক পরিশ্রম কমান।"
-    elif aqi <= 300:
-        return "খুব অস্বাস্থ্যকর — বাইরে না যাওয়াই ভালো।"
-    else:
-        return "বিপজ্জনক — জরুরি অবস্থা, ঘরে থাকুন, মাস্ক পরুন।"
